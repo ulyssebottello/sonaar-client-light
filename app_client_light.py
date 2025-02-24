@@ -15,7 +15,9 @@ def is_processed_file(df: pd.DataFrame) -> bool:
         'turn_count',
         'default_count',
         'feedbackPositive',
-        'feedbackNegative'
+        'feedbackNegative',
+        'is_hot_topic',
+        'hot_topic_name'
     ]
     return all(col in df.columns for col in required_columns)
 
@@ -483,6 +485,64 @@ def display_satisfaction_metrics(df: pd.DataFrame):
     except Exception as e:
         st.info("Une erreur est survenue lors de l'affichage des métriques de satisfaction.")
 
+def display_hot_topic_stats(df: pd.DataFrame):
+    """Display statistics for hot topics including distribution pie charts"""
+    if df.empty or 'is_hot_topic' not in df.columns or 'hot_topic_name' not in df.columns:
+        st.info("🔥 Aucune donnée disponible pour les hot topics.")
+        return
+        
+    try:
+        st.subheader("🔥 Analyse des Hot Topics")
+        
+        # Calculate overall hot topic presence
+        total_conversations = len(df)
+        hot_topic_conversations = df['is_hot_topic'].sum()
+        
+        if hot_topic_conversations == 0:
+            st.info("Aucun hot topic n'a été détecté.")
+            return
+            
+        # Create columns for the two pie charts
+        col1, col2 = st.columns(2)
+        
+        # First pie chart: Overall distribution
+        with col1:
+            fig1 = go.Figure(data=[go.Pie(
+                labels=['Avec Hot Topic', 'Sans Hot Topic'],
+                values=[hot_topic_conversations, total_conversations - hot_topic_conversations],
+                hole=.3
+            )])
+            fig1.update_layout(
+                title="Distribution des conversations avec Hot Topics",
+                height=400
+            )
+            st.plotly_chart(fig1, use_container_width=True)
+        
+        # Second pie chart: Hot topic names distribution
+        with col2:
+            hot_topic_counts = df[df['is_hot_topic']]['hot_topic_name'].value_counts()
+            fig2 = go.Figure(data=[go.Pie(
+                labels=hot_topic_counts.index,
+                values=hot_topic_counts.values,
+                hole=.3
+            )])
+            fig2.update_layout(
+                title="Répartition des types de Hot Topics",
+                height=400
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+            
+        # Display summary metrics
+        hot_topic_rate = (hot_topic_conversations / total_conversations * 100)
+        st.metric(
+            "Taux de conversations avec Hot Topic",
+            f"{hot_topic_rate:.1f}%",
+            help="Pourcentage de conversations contenant au moins un hot topic"
+        )
+        
+    except Exception as e:
+        st.info("Une erreur est survenue lors de l'affichage des statistiques des hot topics.")
+
 def main():
     st.set_page_config(page_title="sonaar light - Client Dashboard", layout="wide")
     
@@ -497,7 +557,7 @@ def main():
             
             if not is_processed_file(df):
                 st.error("Le fichier ne contient pas toutes les colonnes requises. Assurez-vous d'utiliser un fichier d'analyse complet généré par Genii Insights.")
-                st.info("Colonnes requises: theme_principal, sous_theme, date, conversationId, turn_count, default_count, feedbackPositive, feedbackNegative")
+                st.info("Colonnes requises: theme_principal, sous_theme, date, conversationId, turn_count, default_count, feedbackPositive, feedbackNegative, is_hot_topic, hot_topic_name")
                 return
             
             # Data validation and preparation
@@ -519,6 +579,9 @@ def main():
             
             with st.spinner("Génération des statistiques des thèmes..."):
                 display_statistics(df)
+            
+            with st.spinner("Génération des statistiques des hot topics..."):
+                display_hot_topic_stats(df)
             
             if 'default_count' in df.columns:
                 with st.spinner("Génération des statistiques des réponses par défaut..."):
