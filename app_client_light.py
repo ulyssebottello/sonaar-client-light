@@ -97,7 +97,7 @@ def display_conversation_metrics(df: pd.DataFrame):
         st.subheader("📈 Métriques des conversations")
         
         # Ensure date column is datetime
-        df['date'] = pd.to_datetime(df['date']).dt.normalize()
+        df['date'] = pd.to_datetime(df['date'], format='ISO8601').dt.normalize()
         
         # Calculate basic metrics
         total_conversations = len(df)
@@ -561,7 +561,7 @@ def main():
                 return
             
             # Data validation and preparation
-            df['date'] = pd.to_datetime(df['date']).dt.normalize()
+            df['date'] = pd.to_datetime(df['date'], format='ISO8601').dt.normalize()
             
             # Show file info
             st.success("✅ Fichier d'analyse valide")
