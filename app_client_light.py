@@ -544,9 +544,9 @@ def display_hot_topic_stats(df: pd.DataFrame):
         st.info("Une erreur est survenue lors de l'affichage des statistiques des hot topics.")
 
 def main():
-    st.set_page_config(page_title="sonaar light - Client Dashboard", layout="wide")
+    st.set_page_config(page_title="scuuba light - Client Dashboard", layout="wide")
     
-    st.title("✨ sonaar light - Dashboard Client")
+    st.title("✨ scuuba light - Dashboard Client")
     st.write("Téléchargez votre fichier d'analyse pour visualiser les résultats.")
     
     uploaded_file = st.file_uploader("Choisissez un fichier CSV d'analyse", type="csv")
