@@ -15,9 +15,7 @@ def is_processed_file(df: pd.DataFrame) -> bool:
         'turn_count',
         'default_count',
         'feedbackPositive',
-        'feedbackNegative',
-        'is_hot_topic',
-        'hot_topic_name'
+        'feedbackNegative'
     ]
     return all(col in df.columns for col in required_columns)
 
@@ -32,7 +30,19 @@ def display_statistics(df: pd.DataFrame):
         return
         
     try:
-        st.subheader("📊 Statistiques des thèmes")
+        # Calculate how many conversations have theme data
+        total_conversations = len(df)
+        has_theme = df['theme_principal'].notna() & (df['theme_principal'] != "")
+        theme_conversations = has_theme.sum()
+        theme_percentage = (theme_conversations / total_conversations * 100).round(1)
+        
+        # Display theme statistics with conversation count
+        st.subheader(f"📊 Statistiques des thèmes ({theme_conversations}/{total_conversations} conversations - {theme_percentage}%)")
+        
+        # Display metrics in columns
+        col1, col2 = st.columns(2)
+        col1.metric("Conversations avec thème", theme_conversations)
+        col2.metric("Pourcentage du total", f"{theme_percentage}%")
         
         # Répartition des thèmes et sous-thèmes
         theme_data = df.groupby(['theme_principal', 'sous_theme']).size().reset_index(name='count')
@@ -488,7 +498,6 @@ def display_satisfaction_metrics(df: pd.DataFrame):
 def display_hot_topic_stats(df: pd.DataFrame):
     """Display statistics for hot topics including distribution pie charts"""
     if df.empty or 'is_hot_topic' not in df.columns or 'hot_topic_name' not in df.columns:
-        st.info("🔥 Aucune donnée disponible pour les hot topics.")
         return
         
     try:
@@ -557,7 +566,7 @@ def main():
             
             if not is_processed_file(df):
                 st.error("Le fichier ne contient pas toutes les colonnes requises. Assurez-vous d'utiliser un fichier d'analyse complet généré par Genii Insights.")
-                st.info("Colonnes requises: theme_principal, sous_theme, date, conversationId, turn_count, default_count, feedbackPositive, feedbackNegative, is_hot_topic, hot_topic_name")
+                st.info("Colonnes requises: theme_principal, sous_theme, date, conversationId, turn_count, default_count, feedbackPositive, feedbackNegative")
                 return
             
             # Data validation and preparation
@@ -580,8 +589,10 @@ def main():
             with st.spinner("Génération des statistiques des thèmes..."):
                 display_statistics(df)
             
-            with st.spinner("Génération des statistiques des hot topics..."):
-                display_hot_topic_stats(df)
+            # Only display hot topic stats if the required columns exist
+            if 'is_hot_topic' in df.columns and 'hot_topic_name' in df.columns:
+                with st.spinner("Génération des statistiques des hot topics..."):
+                    display_hot_topic_stats(df)
             
             if 'default_count' in df.columns:
                 with st.spinner("Génération des statistiques des réponses par défaut..."):
