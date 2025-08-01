@@ -552,6 +552,128 @@ def display_hot_topic_stats(df: pd.DataFrame):
     except Exception as e:
         st.info("Une erreur est survenue lors de l'affichage des statistiques des hot topics.")
 
+def display_url_and_device_stats(df: pd.DataFrame):
+    """Display URL frequency analysis and device distribution"""
+    if df.empty:
+        st.info("🔗 Aucune donnée disponible pour l'analyse des URLs et appareils.")
+        return
+        
+    try:
+        st.subheader("🔗 Analyse des URLs et appareils")
+        
+        # Check if required columns exist
+        has_urls = 'urls' in df.columns
+        has_device = 'device' in df.columns
+        
+        if not has_urls and not has_device:
+            st.info("Colonnes 'urls' et 'device' non trouvées - cette analyse n'est pas disponible")
+            return
+        
+        # Create two columns for side-by-side display
+        col1, col2 = st.columns(2)
+        
+        # URLs Analysis
+        if has_urls:
+            with col1:
+                st.markdown("### 🔗 Top 10 des URLs les plus fréquentes")
+                
+                # Extract and count URLs
+                url_counts = {}
+                
+                for idx, row in df.iterrows():
+                    urls_cell = row['urls']
+                    if pd.notna(urls_cell) and urls_cell:
+                        # Split URLs by comma and clean them
+                        urls = [url.strip() for url in str(urls_cell).split(',') if url.strip()]
+                        
+                        for url in urls:
+                            url_counts[url] = url_counts.get(url, 0) + 1
+                
+                if url_counts:
+                    # Convert to sorted list and get top 10
+                    top_urls = sorted(url_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+                    
+                    # Create DataFrame for display
+                    url_df = pd.DataFrame(top_urls, columns=['URL', 'Nombre d\'occurrences'])
+                    url_df['Rang'] = range(1, len(url_df) + 1)
+                    
+                    # Reorder columns
+                    url_df = url_df[['Rang', 'URL', 'Nombre d\'occurrences']]
+                    
+                    st.dataframe(
+                        url_df,
+                        hide_index=True,
+                        column_config={
+                            "Rang": st.column_config.NumberColumn("Rang", width="small"),
+                            "URL": st.column_config.TextColumn("URL", width="large"),
+                            "Nombre d'occurrences": st.column_config.NumberColumn("Occurrences")
+                        }
+                    )
+                    
+                    # Display total stats
+                    total_urls = sum(url_counts.values())
+                    unique_urls = len(url_counts)
+                    
+                    st.metric("Total URLs trouvées", total_urls)
+                    st.metric("URLs uniques", unique_urls)
+                else:
+                    st.info("Aucune URL trouvée dans les données")
+        else:
+            with col1:
+                st.info("Colonne 'urls' non trouvée")
+        
+        # Device Analysis
+        if has_device:
+            with col2:
+                st.markdown("### 📱 Répartition des appareils")
+                
+                # Count devices
+                device_counts = df['device'].value_counts()
+                
+                if not device_counts.empty:
+                    # Create pie chart
+                    fig = go.Figure(data=[go.Pie(
+                        labels=device_counts.index,
+                        values=device_counts.values,
+                        hole=0.3
+                    )])
+                    
+                    fig.update_layout(
+                        title="Distribution des types d'appareils",
+                        height=400,
+                        showlegend=True
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Display device stats
+                    st.markdown("#### 📊 Détail par appareil")
+                    device_df = pd.DataFrame({
+                        'Appareil': device_counts.index,
+                        'Nombre': device_counts.values,
+                        'Pourcentage': (device_counts.values / device_counts.sum() * 100).round(1)
+                    })
+                    
+                    st.dataframe(
+                        device_df.assign(
+                            Pourcentage=lambda x: x['Pourcentage'].map('{:.1f}%'.format)
+                        ),
+                        hide_index=True,
+                        column_config={
+                            "Appareil": st.column_config.TextColumn("Type d'appareil"),
+                            "Nombre": st.column_config.NumberColumn("Nombre de conversations"),
+                            "Pourcentage": st.column_config.TextColumn("Pourcentage")
+                        }
+                    )
+                else:
+                    st.info("Aucune donnée d'appareil trouvée")
+        else:
+            with col2:
+                st.info("Colonne 'device' non trouvée")
+        
+    except Exception as e:
+        st.info("Une erreur est survenue lors de l'affichage des statistiques URL/Device.")
+
 def main():
     st.set_page_config(page_title="scuuba light - Client Dashboard", layout="wide")
     
@@ -585,6 +707,10 @@ def main():
             
             with st.spinner("Génération des métriques de conversation..."):
                 display_conversation_metrics(df)
+            
+            # Display URL and device statistics
+            with st.spinner("Génération des statistiques URLs et appareils..."):
+                display_url_and_device_stats(df)
             
             with st.spinner("Génération des statistiques des thèmes..."):
                 display_statistics(df)
