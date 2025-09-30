@@ -698,35 +698,61 @@ def main():
             st.success("✅ Fichier d'analyse valide")
             st.info(f"📊 {len(df)} conversations analysées")
             
+            # Date range picker for filtering
+            st.markdown("### 📅 Filtrer par période")
+            
+            # Get date range from data
+            min_date = df['date'].min().date()
+            max_date = df['date'].max().date()
+            
+            # Create date range picker
+            date_range = st.date_input(
+                "Sélectionnez la période à analyser:",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date,
+                help=f"Données disponibles du {min_date.strftime('%d/%m/%Y')} au {max_date.strftime('%d/%m/%Y')}"
+            )
+            
+            # Filter DataFrame based on selected date range
+            if isinstance(date_range, tuple) and len(date_range) == 2:
+                start_date, end_date = date_range
+                df_filtered = df[(df['date'].dt.date >= start_date) & (df['date'].dt.date <= end_date)]
+                st.info(f"🔍 {len(df_filtered)} conversations dans la période sélectionnée (sur {len(df)} conversations au total)")
+            else:
+                # If only one date selected or invalid range, use all data
+                df_filtered = df
+                st.info("⚠️ Veuillez sélectionner une période complète (date de début et de fin)")
+            
             # Display all statistics
             st.markdown("### 📊 Tableau de bord")
             
             # Display metrics in order of importance
             with st.spinner("Génération des métriques de satisfaction..."):
-                display_satisfaction_metrics(df)
+                display_satisfaction_metrics(df_filtered)
             
             with st.spinner("Génération des métriques de conversation..."):
-                display_conversation_metrics(df)
+                display_conversation_metrics(df_filtered)
             
             # Display URL and device statistics
             with st.spinner("Génération des statistiques URLs et appareils..."):
-                display_url_and_device_stats(df)
+                display_url_and_device_stats(df_filtered)
             
             with st.spinner("Génération des statistiques des thèmes..."):
-                display_statistics(df)
+                display_statistics(df_filtered)
             
             # Only display hot topic stats if the required columns exist
-            if 'is_hot_topic' in df.columns and 'hot_topic_name' in df.columns:
+            if 'is_hot_topic' in df_filtered.columns and 'hot_topic_name' in df_filtered.columns:
                 with st.spinner("Génération des statistiques des hot topics..."):
-                    display_hot_topic_stats(df)
+                    display_hot_topic_stats(df_filtered)
             
-            if 'default_count' in df.columns:
+            if 'default_count' in df_filtered.columns:
                 with st.spinner("Génération des statistiques des réponses par défaut..."):
-                    display_default_stats(df)
+                    display_default_stats(df_filtered)
             
-            if 'formulaire_data' in df.columns:
+            if 'formulaire_data' in df_filtered.columns:
                 with st.spinner("Génération des statistiques des formulaires..."):
-                    display_formulaire_stats(df)
+                    display_formulaire_stats(df_filtered)
 
         except Exception as e:
             st.error(f"Erreur lors du traitement : {str(e)}")
