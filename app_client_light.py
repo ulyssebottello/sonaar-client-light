@@ -17,6 +17,7 @@ def is_processed_file(df: pd.DataFrame) -> bool:
         'feedbackPositive',
         'feedbackNegative'
     ]
+    # Language columns are optional but preferred
     return all(col in df.columns for col in required_columns)
 
 def display_statistics(df: pd.DataFrame):
@@ -552,6 +553,159 @@ def display_hot_topic_stats(df: pd.DataFrame):
     except Exception as e:
         st.info("Une erreur est survenue lors de l'affichage des statistiques des hot topics.")
 
+def display_language_analysis(df: pd.DataFrame):
+    """Display language distribution and top sub-themes per language"""
+    if df.empty:
+        st.info("🌍 Aucune donnée disponible pour l'analyse des langues.")
+        return
+        
+    try:
+        st.subheader("🌍 Analyse par langue")
+        
+        # Check if language columns exist
+        has_language = 'language_normalized' in df.columns
+        
+        if not has_language:
+            st.info("Colonne 'language_normalized' non trouvée - cette analyse n'est pas disponible")
+            return
+        
+        # Calculate language distribution (excluding empty values)
+        language_data = df[df['language_normalized'].notna() & (df['language_normalized'] != '')]
+        
+        if language_data.empty:
+            st.info("Aucune donnée de langue disponible")
+            return
+        
+        # Global language distribution with grouping of languages <1%
+        raw_language_counts = language_data['language_normalized'].value_counts()
+        total_with_language = len(language_data)
+        
+        # Calculate percentages and identify languages <1%
+        language_percentages = (raw_language_counts / total_with_language * 100)
+        major_languages = language_percentages[language_percentages >= 1.0]
+        minor_languages = language_percentages[language_percentages < 1.0]
+        
+        # Create final language counts with "Autres" category
+        language_counts = major_languages.copy()
+        if len(minor_languages) > 0:
+            language_counts['Autres'] = minor_languages.sum()
+        
+        # Convert back to counts for display
+        language_counts_display = (language_counts / 100 * total_with_language).round().astype(int)
+        
+        st.markdown("### 📊 Répartition globale des langues")
+        
+        # Create two columns for side-by-side display
+        col1, col2 = st.columns([1, 1])
+        
+        # Left column: Pie chart
+        with col1:
+            # Create pie chart for language distribution
+            fig_lang = go.Figure(data=[go.Pie(
+                labels=language_counts_display.index,
+                values=language_counts_display.values,
+                hole=0.3
+            )])
+            
+            fig_lang.update_layout(
+                title="Distribution des langues",
+                height=400,
+                showlegend=True
+            )
+            
+            st.plotly_chart(fig_lang, use_container_width=True)
+        
+        # Right column: Summary table
+        with col2:
+            st.markdown("#### 📋 Récapitulatif")
+            
+            # Language summary table
+            lang_summary_df = pd.DataFrame({
+                'Langue': language_counts_display.index,
+                'Nombre de conversations': language_counts_display.values,
+                'Pourcentage': language_counts.round(1)
+            })
+            
+            st.dataframe(
+                lang_summary_df.assign(
+                    Pourcentage=lambda x: x['Pourcentage'].map('{:.1f}%'.format)
+                ),
+                hide_index=True,
+                column_config={
+                    "Langue": st.column_config.TextColumn("Langue", width="small"),
+                    "Nombre de conversations": st.column_config.NumberColumn("Conversations"),
+                    "Pourcentage": st.column_config.TextColumn("Pourcentage")
+                },
+                use_container_width=True
+            )
+        
+        # Top sub-themes per language (only if theme data is available)
+        if 'sous_theme' in df.columns:
+            st.markdown("### 🎯 Top sous-thèmes par langue")
+            
+            # Get unique languages sorted by frequency (excluding "Autres")
+            display_languages = [lang for lang in language_counts_display.index if lang != 'Autres']
+            top_languages = display_languages[:6]  # Show top 6 languages max
+            
+            # Create columns for displaying multiple languages side by side
+            cols_per_row = 2
+            rows_needed = (len(top_languages) + cols_per_row - 1) // cols_per_row
+            
+            for row in range(rows_needed):
+                cols = st.columns(cols_per_row)
+                
+                for col_idx in range(cols_per_row):
+                    lang_idx = row * cols_per_row + col_idx
+                    if lang_idx < len(top_languages):
+                        language = top_languages[lang_idx]
+                        
+                        with cols[col_idx]:
+                            st.markdown(f"#### 🏳️ {language}")
+                            
+                            # Filter data for this language
+                            lang_df = language_data[language_data['language_normalized'] == language]
+                            
+                            # Get top sub-themes for this language
+                            if not lang_df.empty and 'sous_theme' in lang_df.columns:
+                                sous_theme_counts = lang_df['sous_theme'].value_counts().head(5)  # Top 5 sub-themes
+                                
+                                if not sous_theme_counts.empty:
+                                    # Create DataFrame for display
+                                    theme_df = pd.DataFrame({
+                                        'Sous-thème': sous_theme_counts.index,
+                                        'Occurrences': sous_theme_counts.values,
+                                        'Pourcentage': (sous_theme_counts.values / len(lang_df) * 100).round(1)
+                                    })
+                                    
+                                    # Add rank
+                                    theme_df['Rang'] = range(1, len(theme_df) + 1)
+                                    theme_df = theme_df[['Rang', 'Sous-thème', 'Occurrences', 'Pourcentage']]
+                                    
+                                    st.dataframe(
+                                        theme_df.assign(
+                                            Pourcentage=lambda x: x['Pourcentage'].map('{:.1f}%'.format)
+                                        ),
+                                        hide_index=True,
+                                        column_config={
+                                            "Rang": st.column_config.NumberColumn("#", width="small"),
+                                            "Sous-thème": st.column_config.TextColumn("Sous-thème", width="large"),
+                                            "Occurrences": st.column_config.NumberColumn("Nb"),
+                                            "Pourcentage": st.column_config.TextColumn("%")
+                                        }
+                                    )
+                                    
+                                    # Show total conversations for this language
+                                    st.caption(f"Total: {len(lang_df)} conversations en {language}")
+                                else:
+                                    st.info("Aucun sous-thème disponible")
+                            else:
+                                st.info("Données de thèmes non disponibles")
+        else:
+            st.info("Colonnes de thèmes non disponibles pour l'analyse détaillée par langue")
+        
+    except Exception as e:
+        st.info("Une erreur est survenue lors de l'affichage de l'analyse des langues.")
+
 def display_url_and_device_stats(df: pd.DataFrame):
     """Display URL frequency analysis and device distribution"""
     if df.empty:
@@ -737,6 +891,10 @@ def main():
             # Display URL and device statistics
             with st.spinner("Génération des statistiques URLs et appareils..."):
                 display_url_and_device_stats(df_filtered)
+            
+            # Display language analysis
+            with st.spinner("Génération de l'analyse des langues..."):
+                display_language_analysis(df_filtered)
             
             with st.spinner("Génération des statistiques des thèmes..."):
                 display_statistics(df_filtered)
