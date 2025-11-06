@@ -425,6 +425,8 @@ def display_satisfaction_metrics(df: pd.DataFrame):
         
         # Calculate themes with negative feedback
         if 'sous_theme' in df.columns:
+            st.subheader("🔍 Sous-thèmes avec feedback négatif")
+            
             theme_feedback = df.groupby('sous_theme').agg({
                 'feedbackNegative': 'sum',
                 'feedbackPositive': 'sum'
@@ -435,63 +437,128 @@ def display_satisfaction_metrics(df: pd.DataFrame):
             
             if theme_feedback.empty:
                 st.info("Aucun sous-thème n'a reçu de feedback négatif.")
-                return
+            else:
+                # Sort by negative feedback
+                theme_feedback = theme_feedback.sort_values('feedbackNegative', ascending=False)
+                
+                # Calculate percentages
+                theme_feedback['total_feedback'] = theme_feedback['feedbackPositive'] + theme_feedback['feedbackNegative']
+                theme_feedback['negative_rate'] = (theme_feedback['feedbackNegative'] / theme_feedback['total_feedback'] * 100).round(1)
+                
+                # Display as table
+                st.dataframe(
+                    theme_feedback.assign(
+                        negative_rate=lambda x: x['negative_rate'].map('{:.1f}%'.format)
+                    ).rename(columns={
+                        'sous_theme': 'Sous-thème',
+                        'feedbackNegative': 'Feedback négatif',
+                        'feedbackPositive': 'Feedback positif',
+                        'total_feedback': 'Total feedback',
+                        'negative_rate': 'Taux négatif'
+                    }),
+                    hide_index=True,
+                    column_config={
+                        "Sous-thème": st.column_config.TextColumn("Sous-thème", width="large"),
+                        "Feedback négatif": st.column_config.NumberColumn("👎 Négatif"),
+                        "Feedback positif": st.column_config.NumberColumn("👍 Positif"),
+                        "Total feedback": st.column_config.NumberColumn("Total"),
+                        "Taux négatif": st.column_config.TextColumn("% Négatif")
+                    }
+                )
+                
+                # Create bar chart
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=theme_feedback['sous_theme'],
+                    y=theme_feedback['feedbackNegative'],
+                    name='Feedback négatif',
+                    marker_color='#ff6b6b'
+                ))
+                fig.add_trace(go.Bar(
+                    x=theme_feedback['sous_theme'],
+                    y=theme_feedback['feedbackPositive'],
+                    name='Feedback positif',
+                    marker_color='#51cf66'
+                ))
+                
+                fig.update_layout(
+                    title="Répartition des feedbacks par sous-thème",
+                    xaxis_title="",
+                    yaxis_title="Nombre de feedback",
+                    barmode='group',
+                    height=400,
+                    showlegend=True
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
             
-            # Sort by negative feedback
-            theme_feedback = theme_feedback.sort_values('feedbackNegative', ascending=False)
+            # Analyze positive feedback by sub-theme
+            st.subheader("✨ Sous-thèmes avec feedback positif")
             
-            st.subheader("🔍 Sous-thèmes avec feedback négatif")
+            theme_feedback_positive = df.groupby('sous_theme').agg({
+                'feedbackPositive': 'sum',
+                'feedbackNegative': 'sum'
+            }).reset_index()
             
-            # Calculate percentages
-            theme_feedback['total_feedback'] = theme_feedback['feedbackPositive'] + theme_feedback['feedbackNegative']
-            theme_feedback['negative_rate'] = (theme_feedback['feedbackNegative'] / theme_feedback['total_feedback'] * 100).round(1)
+            # Filter to keep only themes with positive feedback
+            theme_feedback_positive = theme_feedback_positive[theme_feedback_positive['feedbackPositive'] > 0]
             
-            # Display as table
-            st.dataframe(
-                theme_feedback.assign(
-                    negative_rate=lambda x: x['negative_rate'].map('{:.1f}%'.format)
-                ).rename(columns={
-                    'sous_theme': 'Sous-thème',
-                    'feedbackNegative': 'Feedback négatif',
-                    'feedbackPositive': 'Feedback positif',
-                    'total_feedback': 'Total feedback',
-                    'negative_rate': 'Taux négatif'
-                }),
-                hide_index=True,
-                column_config={
-                    "Sous-thème": st.column_config.TextColumn("Sous-thème", width="large"),
-                    "Feedback négatif": st.column_config.NumberColumn("👎 Négatif"),
-                    "Feedback positif": st.column_config.NumberColumn("👍 Positif"),
-                    "Total feedback": st.column_config.NumberColumn("Total"),
-                    "Taux négatif": st.column_config.TextColumn("% Négatif")
-                }
-            )
-            
-            # Create bar chart
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=theme_feedback['sous_theme'],
-                y=theme_feedback['feedbackNegative'],
-                name='Feedback négatif',
-                marker_color='#ff6b6b'
-            ))
-            fig.add_trace(go.Bar(
-                x=theme_feedback['sous_theme'],
-                y=theme_feedback['feedbackPositive'],
-                name='Feedback positif',
-                marker_color='#51cf66'
-            ))
-            
-            fig.update_layout(
-                title="Répartition des feedbacks par sous-thème",
-                xaxis_title="",
-                yaxis_title="Nombre de feedback",
-                barmode='group',
-                height=400,
-                showlegend=True
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+            if theme_feedback_positive.empty:
+                st.info("Aucun sous-thème n'a reçu de feedback positif.")
+            else:
+                # Sort by positive feedback
+                theme_feedback_positive = theme_feedback_positive.sort_values('feedbackPositive', ascending=False)
+                
+                # Calculate percentages
+                theme_feedback_positive['total_feedback'] = theme_feedback_positive['feedbackPositive'] + theme_feedback_positive['feedbackNegative']
+                theme_feedback_positive['positive_rate'] = (theme_feedback_positive['feedbackPositive'] / theme_feedback_positive['total_feedback'] * 100).round(1)
+                
+                # Display as table
+                st.dataframe(
+                    theme_feedback_positive.assign(
+                        positive_rate=lambda x: x['positive_rate'].map('{:.1f}%'.format)
+                    ).rename(columns={
+                        'sous_theme': 'Sous-thème',
+                        'feedbackPositive': 'Feedback positif',
+                        'feedbackNegative': 'Feedback négatif',
+                        'total_feedback': 'Total feedback',
+                        'positive_rate': 'Taux positif'
+                    }),
+                    hide_index=True,
+                    column_config={
+                        "Sous-thème": st.column_config.TextColumn("Sous-thème", width="large"),
+                        "Feedback positif": st.column_config.NumberColumn("👍 Positif"),
+                        "Feedback négatif": st.column_config.NumberColumn("👎 Négatif"),
+                        "Total feedback": st.column_config.NumberColumn("Total"),
+                        "Taux positif": st.column_config.TextColumn("% Positif")
+                    }
+                )
+                
+                # Create bar chart
+                fig_positive = go.Figure()
+                fig_positive.add_trace(go.Bar(
+                    x=theme_feedback_positive['sous_theme'],
+                    y=theme_feedback_positive['feedbackPositive'],
+                    name='Feedback positif',
+                    marker_color='#51cf66'
+                ))
+                fig_positive.add_trace(go.Bar(
+                    x=theme_feedback_positive['sous_theme'],
+                    y=theme_feedback_positive['feedbackNegative'],
+                    name='Feedback négatif',
+                    marker_color='#ff6b6b'
+                ))
+                
+                fig_positive.update_layout(
+                    title="Répartition des feedbacks par sous-thème (vue positive)",
+                    xaxis_title="",
+                    yaxis_title="Nombre de feedback",
+                    barmode='group',
+                    height=400,
+                    showlegend=True
+                )
+                
+                st.plotly_chart(fig_positive, use_container_width=True)
         
     except Exception as e:
         st.info("Une erreur est survenue lors de l'affichage des métriques de satisfaction.")
