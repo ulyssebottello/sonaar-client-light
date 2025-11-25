@@ -617,6 +617,44 @@ def display_hot_topic_stats(df: pd.DataFrame):
             help="Pourcentage de conversations contenant au moins un hot topic"
         )
         
+        # Display detailed table of hot topic clicks
+        st.markdown("### 📋 Détail des Hot Topics")
+        
+        hot_topic_counts = df[df['is_hot_topic']]['hot_topic_name'].value_counts()
+        total_hot_topics = hot_topic_counts.sum()
+        
+        # Create DataFrame for the table
+        hot_topic_table = pd.DataFrame({
+            'Hot Topic': hot_topic_counts.index,
+            'Nombre de clics': hot_topic_counts.values,
+            '% des Hot Topics': (hot_topic_counts.values / total_hot_topics * 100).round(1),
+            '% des conversations': (hot_topic_counts.values / total_conversations * 100).round(1)
+        })
+        
+        # Add rank column
+        hot_topic_table.insert(0, 'Rang', range(1, len(hot_topic_table) + 1))
+        
+        # Display the table
+        st.dataframe(
+            hot_topic_table.assign(
+                **{
+                    '% des Hot Topics': lambda x: x['% des Hot Topics'].map('{:.1f}%'.format),
+                    '% des conversations': lambda x: x['% des conversations'].map('{:.1f}%'.format)
+                }
+            ),
+            hide_index=True,
+            column_config={
+                "Rang": st.column_config.NumberColumn("Rang", width="small"),
+                "Hot Topic": st.column_config.TextColumn("Hot Topic", width="large"),
+                "Nombre de clics": st.column_config.NumberColumn("Clics", help="Nombre de fois où ce Hot Topic a été détecté"),
+                "% des Hot Topics": st.column_config.TextColumn("% Hot Topics", help="Pourcentage par rapport au total des Hot Topics détectés"),
+                "% des conversations": st.column_config.TextColumn("% Conversations", help="Pourcentage par rapport au total des conversations")
+            }
+        )
+        
+        # Add summary line
+        st.caption(f"📊 Total : {total_hot_topics} Hot Topics détectés dans {hot_topic_conversations} conversations sur {total_conversations} conversations totales")
+        
     except Exception as e:
         st.info("Une erreur est survenue lors de l'affichage des statistiques des hot topics.")
 
