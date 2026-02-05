@@ -937,25 +937,63 @@ def main():
     st.set_page_config(page_title="scuuba light - Client Dashboard", layout="wide")
     
     st.title("✨ scuuba light - Dashboard Client")
-    st.write("Téléchargez votre fichier d'analyse pour visualiser les résultats.")
+    st.write("Téléchargez vos fichiers d'analyse pour visualiser les résultats. Vous pouvez importer plusieurs fichiers CSV pour générer un rapport cumulé sur plusieurs périodes.")
     
-    uploaded_file = st.file_uploader("Choisissez un fichier CSV d'analyse", type="csv")
+    uploaded_files = st.file_uploader(
+        "Choisissez un ou plusieurs fichiers CSV d'analyse", 
+        type="csv",
+        accept_multiple_files=True,
+        help="Glissez-déposez plusieurs fichiers CSV pour créer un rapport cumulé sur plusieurs mois"
+    )
     
-    if uploaded_file is not None:
+    if uploaded_files:
         try:
-            df = pd.read_csv(uploaded_file)
+            # Process all uploaded files
+            dataframes = []
+            valid_files = []
+            invalid_files = []
             
-            if not is_processed_file(df):
-                st.error("Le fichier ne contient pas toutes les colonnes requises. Assurez-vous d'utiliser un fichier d'analyse complet généré par Genii Insights.")
+            for uploaded_file in uploaded_files:
+                try:
+                    df_temp = pd.read_csv(uploaded_file)
+                    
+                    if is_processed_file(df_temp):
+                        dataframes.append(df_temp)
+                        valid_files.append(uploaded_file.name)
+                    else:
+                        invalid_files.append(uploaded_file.name)
+                except Exception as e:
+                    invalid_files.append(f"{uploaded_file.name} (erreur: {str(e)})")
+            
+            # Show file processing results
+            if invalid_files:
+                st.warning(f"⚠️ {len(invalid_files)} fichier(s) ignoré(s) car invalide(s): {', '.join(invalid_files)}")
                 st.info("Colonnes requises: theme_principal, sous_theme, date, conversationId, turn_count, default_count, feedbackPositive, feedbackNegative")
+            
+            if not dataframes:
+                st.error("Aucun fichier valide n'a été trouvé. Assurez-vous d'utiliser des fichiers d'analyse complets générés par Genii Insights.")
                 return
+            
+            # Concatenate all valid dataframes
+            df = pd.concat(dataframes, ignore_index=True)
+            
+            # Remove potential duplicates based on conversationId (in case same conversation appears in multiple files)
+            original_count = len(df)
+            df = df.drop_duplicates(subset=['conversationId'], keep='first')
+            duplicates_removed = original_count - len(df)
             
             # Data validation and preparation
             df['date'] = pd.to_datetime(df['date'], format='ISO8601').dt.normalize()
             
             # Show file info
-            st.success("✅ Fichier d'analyse valide")
-            st.info(f"📊 {len(df)} conversations analysées")
+            st.success(f"✅ {len(valid_files)} fichier(s) d'analyse valide(s) chargé(s)")
+            
+            # Display files loaded
+            with st.expander("📁 Fichiers chargés", expanded=False):
+                for filename in valid_files:
+                    st.write(f"• {filename}")
+            
+            st.info(f"📊 {len(df)} conversations analysées au total" + (f" ({duplicates_removed} doublons supprimés)" if duplicates_removed > 0 else ""))
             
             # Date range picker for filtering
             st.markdown("### 📅 Filtrer par période")
