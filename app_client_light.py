@@ -811,6 +811,103 @@ def display_language_analysis(df: pd.DataFrame):
     except Exception as e:
         st.info("Une erreur est survenue lors de l'affichage de l'analyse des langues.")
 
+def display_after_hours_stats(df: pd.DataFrame):
+    """Display after hours conversation statistics with percentage and visualization"""
+    if df.empty:
+        st.info("🌙 Aucune donnée disponible pour les statistiques After Hours.")
+        return
+
+    if 'after_hours' not in df.columns:
+        st.info("🌙 Colonne 'after_hours' non trouvée - cette analyse n'est pas disponible")
+        return
+
+    try:
+        st.subheader("🌙 Conversations After Hours")
+
+        total_conversations = len(df)
+        after_hours_count = int(df['after_hours'].sum())
+        business_hours_count = total_conversations - after_hours_count
+        after_hours_pct = (after_hours_count / total_conversations * 100) if total_conversations > 0 else 0
+
+        # Display key metrics
+        col1, col2, col3 = st.columns(3)
+        col1.metric(
+            "Conversations After Hours",
+            f"{after_hours_pct:.1f}%",
+            help="Semaine 18h-8h + week-ends complets"
+        )
+        col2.metric("After Hours", after_hours_count)
+        col3.metric("Heures ouvrées", business_hours_count)
+
+        # Two columns: donut chart + day-of-week breakdown
+        chart_col1, chart_col2 = st.columns(2)
+
+        with chart_col1:
+            fig_pie = go.Figure(data=[go.Pie(
+                labels=["After Hours", "Heures ouvrées"],
+                values=[after_hours_count, business_hours_count],
+                hole=0.4,
+                marker_colors=["#6366f1", "#22c55e"],
+                textinfo="percent+label"
+            )])
+            fig_pie.update_layout(
+                title="Répartition After Hours vs Heures ouvrées",
+                height=400,
+                showlegend=True
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        # Day-of-week breakdown if date column exists
+        with chart_col2:
+            if 'date' in df.columns:
+                df_temp = df.copy()
+                df_temp['date'] = pd.to_datetime(df_temp['date'])
+                df_temp['day_of_week'] = df_temp['date'].dt.dayofweek
+
+                day_labels = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+
+                day_stats = df_temp.groupby('day_of_week').agg(
+                    total=('after_hours', 'count'),
+                    after_hours_total=('after_hours', 'sum')
+                ).reindex(range(7), fill_value=0)
+
+                day_stats['business_hours'] = day_stats['total'] - day_stats['after_hours_total']
+                day_stats['day_label'] = day_labels
+
+                fig_bar = go.Figure()
+                fig_bar.add_trace(go.Bar(
+                    x=day_stats['day_label'],
+                    y=day_stats['after_hours_total'],
+                    name="After Hours",
+                    marker_color="#6366f1"
+                ))
+                fig_bar.add_trace(go.Bar(
+                    x=day_stats['day_label'],
+                    y=day_stats['business_hours'],
+                    name="Heures ouvrées",
+                    marker_color="#22c55e"
+                ))
+                fig_bar.update_layout(
+                    title="Répartition par jour de la semaine",
+                    xaxis_title="",
+                    yaxis_title="Nombre de conversations",
+                    barmode="stack",
+                    height=400,
+                    showlegend=True
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.info("Colonne 'date' non trouvée pour le détail par jour")
+
+        # Info box explaining the definition
+        st.caption(
+            "**Définition After Hours** : conversations en semaine entre 18h00 et 08h00, "
+            "ainsi que toutes les conversations le samedi et le dimanche."
+        )
+
+    except Exception as e:
+        st.info("Une erreur est survenue lors de l'affichage des statistiques After Hours.")
+
 def display_url_and_device_stats(df: pd.DataFrame):
     """Display URL frequency analysis and device distribution"""
     if df.empty:
@@ -1030,6 +1127,10 @@ def main():
             
             with st.spinner("Génération des métriques de conversation..."):
                 display_conversation_metrics(df_filtered)
+            
+            # Display after hours statistics
+            with st.spinner("Génération des statistiques After Hours..."):
+                display_after_hours_stats(df_filtered)
             
             # Display URL and device statistics
             with st.spinner("Génération des statistiques URLs et appareils..."):
