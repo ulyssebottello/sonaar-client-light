@@ -658,6 +658,98 @@ def display_hot_topic_stats(df: pd.DataFrame):
     except Exception as e:
         st.info("Une erreur est survenue lors de l'affichage des statistiques des hot topics.")
 
+def display_custom_answer_stats(df: pd.DataFrame):
+    """Display statistics for custom answers including distribution pie charts"""
+    if df.empty or 'is_custom_answer' not in df.columns or 'custom_answer_name' not in df.columns:
+        return
+        
+    try:
+        st.subheader("💬 Analyse des Custom Answers")
+        
+        total_conversations = len(df)
+        custom_answer_conversations = int(df['is_custom_answer'].sum())
+        
+        if custom_answer_conversations == 0:
+            st.info("Aucun custom answer n'a été détecté.")
+            return
+        
+        # Create columns for the two pie charts
+        col1, col2 = st.columns(2)
+        
+        # First pie chart: Overall distribution
+        with col1:
+            fig1 = go.Figure(data=[go.Pie(
+                labels=['Avec Custom Answer', 'Sans Custom Answer'],
+                values=[custom_answer_conversations, total_conversations - custom_answer_conversations],
+                hole=.4,
+                marker_colors=["#8b5cf6", "#22c55e"]
+            )])
+            fig1.update_layout(
+                title="Distribution des conversations avec Custom Answers",
+                height=400
+            )
+            st.plotly_chart(fig1, use_container_width=True)
+        
+        # Second pie chart: Custom answer names distribution
+        with col2:
+            custom_answer_counts = df[df['is_custom_answer'] == True]['custom_answer_name'].value_counts()
+            fig2 = go.Figure(data=[go.Pie(
+                labels=custom_answer_counts.index,
+                values=custom_answer_counts.values,
+                hole=.4
+            )])
+            fig2.update_layout(
+                title="Répartition des types de Custom Answers",
+                height=400
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+        
+        # Display summary metric
+        custom_answer_rate = (custom_answer_conversations / total_conversations * 100)
+        st.metric(
+            "Taux de conversations avec Custom Answer",
+            f"{custom_answer_rate:.1f}%",
+            help="Pourcentage de conversations déclenchées par un custom answer"
+        )
+        
+        # Display detailed table
+        st.markdown("### 📋 Détail des Custom Answers")
+        
+        custom_answer_counts = df[df['is_custom_answer'] == True]['custom_answer_name'].value_counts()
+        total_custom_answers = custom_answer_counts.sum()
+        
+        ca_table = pd.DataFrame({
+            'Custom Answer': custom_answer_counts.index,
+            'Nombre de clics': custom_answer_counts.values,
+            '% des Custom Answers': (custom_answer_counts.values / total_custom_answers * 100).round(1),
+            '% des conversations': (custom_answer_counts.values / total_conversations * 100).round(1)
+        })
+        
+        ca_table.insert(0, 'Rang', range(1, len(ca_table) + 1))
+        
+        st.dataframe(
+            ca_table.assign(
+                **{
+                    '% des Custom Answers': lambda x: x['% des Custom Answers'].map('{:.1f}%'.format),
+                    '% des conversations': lambda x: x['% des conversations'].map('{:.1f}%'.format)
+                }
+            ),
+            hide_index=True,
+            column_config={
+                "Rang": st.column_config.NumberColumn("Rang", width="small"),
+                "Custom Answer": st.column_config.TextColumn("Custom Answer", width="large"),
+                "Nombre de clics": st.column_config.NumberColumn("Clics", help="Nombre de fois où ce Custom Answer a été détecté"),
+                "% des Custom Answers": st.column_config.TextColumn("% Custom Answers", help="Pourcentage par rapport au total des Custom Answers détectés"),
+                "% des conversations": st.column_config.TextColumn("% Conversations", help="Pourcentage par rapport au total des conversations")
+            }
+        )
+        
+        st.caption(f"📊 Total : {total_custom_answers} Custom Answers détectés dans {custom_answer_conversations} conversations sur {total_conversations} conversations totales")
+        
+    except Exception as e:
+        st.info("Une erreur est survenue lors de l'affichage des statistiques des custom answers.")
+
+
 def display_language_analysis(df: pd.DataFrame):
     """Display language distribution and top sub-themes per language"""
     if df.empty:
@@ -1147,6 +1239,11 @@ def main():
             if 'is_hot_topic' in df_filtered.columns and 'hot_topic_name' in df_filtered.columns:
                 with st.spinner("Génération des statistiques des hot topics..."):
                     display_hot_topic_stats(df_filtered)
+            
+            # Only display custom answer stats if the required columns exist
+            if 'is_custom_answer' in df_filtered.columns and 'custom_answer_name' in df_filtered.columns:
+                with st.spinner("Génération des statistiques des custom answers..."):
+                    display_custom_answer_stats(df_filtered)
             
             if 'default_count' in df_filtered.columns:
                 with st.spinner("Génération des statistiques des réponses par défaut..."):
